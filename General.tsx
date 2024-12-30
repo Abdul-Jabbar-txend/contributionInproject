@@ -1,133 +1,52 @@
-import { Button } from "@rythmz/components/button";
+import { RootState } from "@/redux/slices";
+import {
+  updateDeviceDescription,
+  updateDeviceIsApproved,
+  updateDeviceName,
+} from "@/redux/slices/deviceSlice";
 import { Card, CardContent } from "@rythmz/components/card";
-import { Switch } from "@rythmz/components/switch";
-import Maps from "../../Dashboard/Maps";
-import { useGetDeviceInfoQuery } from "@/redux/rktQueries/DeviceTroubleshoot/device";
-import { useParams } from "react-router-dom";
 import { Input } from "@rythmz/components/input";
-import { useEffect, useState, useCallback } from "react";
-import AlertPopup from "@rythmz/components/Popup";
+import { Switch } from "@rythmz/components/switch";
+import { useEffect, useState } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import Maps from "../../Dashboard/Maps";
 import { HardwareConfiguration } from "./HardwareConfig";
-import { useDispatch } from "react-redux";
-import { updateDeviceGeneralProps } from "@/redux/slices/deviceSlice";
-import { debounce } from "./General/utils";
-import toast from "react-hot-toast";
-import { Check } from "lucide-react";
+import GenerateCertificate from "./GenerateCertificate";
+import useDebounce from "../../../hooks/useDebounce";
 
 const General = () => {
-  const { deviceId } = useParams();
+  const { device } = useSelector((state: RootState) => state.device);
+  const [name, setName] = useState(device?.name);
+  const [description, setDescription] = useState(device?.description);
+  const [isApproved, setIsApproved] = useState(device?.isApproved);
+
   const dispatch = useDispatch();
 
-  const { data } = useGetDeviceInfoQuery({
-    id: deviceId!,
-  });
-  const {
-    name,
-    description,
-    isApproved,
-    machineId,
-    serial,
-    versions,
-    hostname,
-    hwCores,
-    vppCores,
-    configuredVppCores,
-  } = data?.[0] || {};
-
-  const [deviceName, setDeviceName] = useState(name);
-  const [deviceDescription, setDeviceDescription] = useState(description);
-  const [approved, setApproved] = useState(isApproved);
-  const [isOpenModal, setOpenModal] = useState(false);
-  const [selectedMethod, setSelectedMethod] = useState("");
-  const [isNameModified, setIsNameModified] = useState(false);
-  const [isDescriptionModified, setIsDescriptionModified] = useState(false);
-  const [nameTypingTimeout, setNameTypingTimeout] =
-    useState<NodeJS.Timeout | null>(null);
-  const [descriptionTypingTimeout, setDescriptionTypingTimeout] =
-    useState<NodeJS.Timeout | null>(null);
-
-  const debouncedUpdateName = useCallback(
-    debounce((value: string) => {
-      dispatch(updateDeviceGeneralProps({ id: deviceId, name: value }));
-    }, 2000),
-    [deviceId, dispatch]
-  );
-
-  const debouncedUpdateDescription = useCallback(
-    debounce((value: string) => {
-      dispatch(updateDeviceGeneralProps({ id: deviceId, description: value }));
-    }, 2000),
-    [deviceId, dispatch]
-  );
-
-  const handleNameChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setDeviceName(e.target.value);
-    setIsNameModified(false);
-
-    if (nameTypingTimeout) {
-      clearTimeout(nameTypingTimeout);
-    }
-
-    const newTimeout = setTimeout(() => {
-      setIsNameModified(true);
-      debouncedUpdateName(e.target.value);
-    }, 1000);
-
-    setNameTypingTimeout(newTimeout);
-  };
-
-  const handleDescriptionChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setDeviceDescription(e.target.value);
-    setIsDescriptionModified(false);
-
-    if (descriptionTypingTimeout) {
-      clearTimeout(descriptionTypingTimeout);
-    }
-
-    const newTimeout = setTimeout(() => {
-      setIsDescriptionModified(true);
-      debouncedUpdateDescription(e.target.value);
-    }, 2000);
-
-    setDescriptionTypingTimeout(newTimeout);
-  };
-
-  const generateKeyMethod = async (selectedMethod: string) => {
-    try {
-      const response = await applyMethod({
-        deviceId,
-        body: { method: "ikev2" },
-      }).unwrap();
-
-      if (response) {
-        toast.success(`Generate IKEv2 device job added`);
-        setOpenModal(false);
-      }
-    } catch (error) {
-      toast.error("Error generating IKEv2 key/certificate");
-      console.error("Error generating IKEv2 key/certificate:", error);
-    }
-  };
+  const debouncedName = useDebounce(name, 2000);
+  const debouncedDescription = useDebounce(description, 2000);
 
   useEffect(() => {
-    if (data) {
-      setDeviceName(data[0]?.name);
-      setDeviceDescription(data[0].description);
-      setIsNameModified(false);
-      setIsDescriptionModified(false);
-      setApproved(data[0]?.isApproved);
+    if (debouncedName !== device?.name) {
+      dispatch(updateDeviceName({ name: debouncedName }));
+      console.log("updating name after 2 seconds");
     }
-  }, [data]);
+    if (debouncedDescription !== device?.description) {
+      dispatch(updateDeviceDescription({ description: debouncedDescription }));
+      console.log("updating description after 2 seconds");
+    }
+  }, [debouncedName, debouncedDescription, dispatch]);
 
-  const handlePopUP = (method: string) => {
-    setSelectedMethod(method);
-    setOpenModal(true);
+  const updateName = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setName(e.target.value);
   };
 
-  const handleClosePopUP = () => {
-    setOpenModal(false);
+  const updateDescription = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setDescription(e.target.value);
   };
-
+  const updateApproved = (checked: boolean) => {
+    console.log(checked);
+    dispatch(updateDeviceIsApproved({ isApproved: checked }));
+  };
   return (
     <div className="min-h-screen bg-gray-900 p-4 sm:p-6 lg:p-8">
       <div className="max-w-2xl">
@@ -142,12 +61,15 @@ const General = () => {
                   <div className="relative sm:col-span-2">
                     <Input
                       className="rounded p-2 pr-8"
-                      value={deviceName}
-                      onChange={handleNameChange}
+                      value={name}
+                      onChange={updateName}
                     />
-                    {isNameModified && (
-                      <Check className="absolute right-2 top-1/2 transform -translate-y-1/2 text-green-500" />
-                    )}
+                    {/* {isNameEdited && (
+                      <Check
+                        className="absolute right-2 top-1/2 transform -translate-y-1/2 text-green-600"
+                        size={20}
+                      />
+                    )} */}
                   </div>
                 </div>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-4">
@@ -157,12 +79,15 @@ const General = () => {
                   <div className="relative sm:col-span-2">
                     <Input
                       className="rounded p-2 pr-8"
-                      value={deviceDescription}
-                      onChange={handleDescriptionChange}
+                      value={description}
+                      onChange={updateDescription}
                     />
-                    {isDescriptionModified && (
-                      <Check className="absolute right-2 top-1/2 transform -translate-y-1/2 text-green-500" />
-                    )}
+                    {/* {isDescriptionEdited && (
+                      <Check
+                        className="absolute right-2 top-1/2 transform -translate-y-1/2 text-green-600"
+                        size={20}
+                      />
+                    )} */}
                   </div>
                 </div>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-4">
@@ -171,8 +96,8 @@ const General = () => {
                   </label>
                   <div className="sm:col-span-2">
                     <Switch
-                      checked={approved}
-                      onCheckedChange={(e) => setApproved(e)}
+                      checked={device?.isApproved}
+                      onCheckedChange={updateApproved}
                     />
                   </div>
                 </div>
@@ -181,7 +106,7 @@ const General = () => {
                     Host Name
                   </label>
                   <div className="rounded bg-gray-700 p-2 sm:col-span-2">
-                    {hostname || "N/A"}
+                    {device.hostname}
                   </div>
                 </div>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-4">
@@ -189,7 +114,7 @@ const General = () => {
                     Machine ID
                   </label>
                   <div className="rounded bg-gray-700 p-2 sm:col-span-2">
-                    {machineId || "N/A"}
+                    {device.machineId}
                   </div>
                 </div>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-4">
@@ -197,7 +122,7 @@ const General = () => {
                     S/N
                   </label>
                   <div className="rounded bg-gray-700 p-2 break-all sm:col-span-2">
-                    {serial || "N/A"}
+                    {device.serial}
                   </div>
                 </div>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-4">
@@ -205,7 +130,7 @@ const General = () => {
                     Device Version
                   </label>
                   <div className="rounded bg-gray-700 p-2 sm:col-span-2">
-                    {versions?.device || "N/A"}
+                    {device.versions?.device}
                   </div>
                 </div>
               </div>
@@ -220,35 +145,9 @@ const General = () => {
               </div>
 
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 sm:gap-4">
-                <Button
-                  variant="secondary"
-                  className="w-full sm:w-auto"
-                  title="Generate a new IKEv2 Private Key & Certificate"
-                  onClick={() => handlePopUP("IKEv2")}
-                >
-                  Generate IKEv2
-                </Button>
+                <GenerateCertificate />
 
-                <AlertPopup
-                  isOpen={isOpenModal}
-                  onClose={handleClosePopUP}
-                  onContinue={() =>
-                    selectedMethod && generateKeyMethod(selectedMethod)
-                  }
-                  title="Generate IKEv2 Key/Certificate"
-                  description="Are you sure you want to generate a new IKEv2 Private Key and Certificate?"
-                />
-                <HardwareConfiguration
-                  deviceId={deviceId!}
-                  cpuInfo={
-                    data?.[0]?.cpuInfo || {
-                      hwCores: 1,
-                      vppCores: 1,
-                      configuredVppCores: 1,
-                      powerSaving: false,
-                    }
-                  }
-                />
+                <HardwareConfiguration />
               </div>
 
               <hr />
@@ -264,9 +163,3 @@ const General = () => {
 };
 
 export default General;
-function applyMethod(arg0: {
-  deviceId: string | undefined;
-  body: { method: string };
-}) {
-  throw new Error("Function not implemented.");
-}
