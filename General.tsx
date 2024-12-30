@@ -10,7 +10,7 @@ import AlertPopup from "@rythmz/components/Popup";
 import { HardwareConfiguration } from "./HardwareConfig";
 import { useDispatch } from "react-redux";
 import { updateDeviceGeneralProps } from "@/redux/slices/deviceSlice";
-import { debounce } from "./utils";
+import { debounce } from "./General/utils";
 import toast from "react-hot-toast";
 import { Check } from "lucide-react";
 
